@@ -50,6 +50,11 @@
 #[cfg(test)]
 extern crate std;
 
+/// The examples of the readme file are checked as the documentation tests.
+#[cfg(doctest)]
+#[doc = include_str!("../README.md")]
+struct ReadmeExamples;
+
 pub mod consts;
 pub mod fixed;
 pub mod fmt;

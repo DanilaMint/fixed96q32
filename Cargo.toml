@@ -4,13 +4,14 @@ version = "0.1.0"
 edition = "2024"
 rust-version = "1.85"
 description = "Fixed-point number type with a 128-bit layout: 1 sign bit, 95 integer bits and 32 fractional bits"
-license = "MIT OR Apache-2.0"
+license = "MIT"
+readme = "README.md"
+documentation = "https://docs.rs/fixed96q32"
 keywords = ["fixed-point", "no_std", "decimal", "cordic"]
 categories = ["no-std", "mathematics"]
-exclude = ["tools/**"]
 
 [features]
-default = ["num-traits"]
+default = []
 num-traits = ["dep:num-traits"]
 serde = ["dep:serde"]
 
