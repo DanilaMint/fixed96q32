@@ -6,9 +6,6 @@ const FRACTION_MASK_U128: u128 = (1u128 << 32) - 1;
 /// Mask of the low 64 bits.
 const MASK64: u128 = u64::MAX as u128;
 
-const EPSILON_F64: f64 = 1. / (1u64 << Fixed::FRACTIONAL_BITS) as f64;
-const EPSILON_F32: f32 = 1. / (1u64 << Fixed::FRACTIONAL_BITS) as f32;
-
 /// A signed fixed-point number.
 ///
 /// The value is stored as a 128-bit two's complement integer `raw` and the
@@ -113,10 +110,13 @@ impl Fixed {
         }
     }
 
-    /// Creates a value from `f64`
+    /// Creates a value from a double precision float.
     ///
-    /// NaN converts to 0,
-    /// Too big absolute values saturates to `Fixed::MAX` or `Fixed::MIN`
+    /// The value is rounded to the nearest representable number, the overflow
+    /// is clamped to [`Fixed::MIN`] / [`Fixed::MAX`] and the `NaN` becomes
+    /// zero, because a constant context cannot report an error. Use
+    /// [`TryFrom<f64>`](crate::froms::ConversionError) when the invalid values
+    /// have to be rejected.
     ///
     /// # Examples
     ///
@@ -125,26 +125,48 @@ impl Fixed {
     ///
     /// assert_eq!(Fixed::from_f64(7.5), Fixed::from_int(7) + Fixed::HALF);
     /// assert_eq!(Fixed::from_f64(f64::NAN), Fixed::ZERO);
-    /// assert_eq!(Fixed::from_f64(100.0.exp()), Fixed::MAX);
+    /// assert_eq!(Fixed::from_f64(f64::INFINITY), Fixed::MAX);
     /// assert_eq!(Fixed::from_f64(f64::NEG_INFINITY), Fixed::MIN);
     /// ```
     #[inline]
     pub const fn from_f64(value: f64) -> Self {
-        let inner = value * (1u64 << Self::FRACTIONAL_BITS) as f64;
+        if value.is_nan() {
+            return Self::ZERO;
+        }
 
-        Self::from_raw(inner as i128)
+        let scaled = value * 4_294_967_296.0;
+        let limit = 170_141_183_460_469_231_731_687_303_715_884_105_728.0;
+
+        if scaled >= limit {
+            return Self::MAX;
+        }
+        if scaled <= -limit {
+            return Self::MIN;
+        }
+
+        let truncated = scaled as i128;
+        let fraction = scaled - truncated as f64;
+        let rounded = if fraction >= 0.5 {
+            truncated + 1
+        } else if fraction <= -0.5 {
+            truncated - 1
+        } else {
+            truncated
+        };
+
+        Self::from_raw(rounded)
     }
 
     /// Converts the value to an `f64`, losing precision for large values.
     #[inline]
     pub const fn to_f64(self) -> f64 {
-        self.raw as f64 * EPSILON_F64
+        (self.raw as f64) / 4_294_967_296.0
     }
 
     /// Converts the value to an `f32`, losing precision
     #[inline]
     pub const fn to_f32(self) -> f32 {
-        self.raw as f32 * EPSILON_F32
+        ((self.raw as f64) / 4_294_967_296.0) as f32
     }
 
     /// Creates a value from an integral and a fractional part.
