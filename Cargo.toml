@@ -1,0 +1,25 @@
+[package]
+name = "fixed96q32"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+description = "Fixed-point number type with a 128-bit layout: 1 sign bit, 95 integer bits and 32 fractional bits"
+license = "MIT OR Apache-2.0"
+keywords = ["fixed-point", "no_std", "decimal", "cordic"]
+categories = ["no-std", "mathematics"]
+exclude = ["tools/**"]
+
+[features]
+default = ["num-traits"]
+num-traits = ["dep:num-traits"]
+serde = ["dep:serde"]
+
+[dependencies]
+num-traits = { version = "0.2", optional = true, default-features = false }
+serde = { version = "1", optional = true, default-features = false }
+
+[dev-dependencies]
+serde_json = "1"
+
+[profile.test]
+opt-level = 1
