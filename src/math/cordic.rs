@@ -116,6 +116,58 @@ pub(crate) const LOG_TABLE: [i128; ITERATIONS] = [
     65536,               // ln(1 + 2^-48)
 ];
 
+/// The table of the reciprocals `1 / (1 + 2**-i)` in the Q64 format.
+const RECIPROCAL_TABLE: [i128; ITERATIONS] = [
+    12297829382473034411, // 1 / (1 + 2^-1)
+    14757395258967641293, // 1 / (1 + 2^-2)
+    16397105843297379214, // 1 / (1 + 2^-3)
+    17361641481138401521, // 1 / (1 + 2^-4)
+    17887751829051686416, // 1 / (1 + 2^-5)
+    18162948011037096976, // 1 / (1 + 2^-6)
+    18303746057634283774, // 1 / (1 + 2^-7)
+    18374966859414961921, // 1 / (1 + 2^-8)
+    18410785508263724030, // 1 / (1 + 2^-9)
+    18428747250223005712, // 1 / (1 + 2^-10)
+    18437741270354886144, // 1 / (1 + 2^-11)
+    18442241573325438960, // 1 / (1 + 2^-12)
+    18444492548740222976, // 1 / (1 + 2^-13)
+    18445618242517991680, // 1 / (1 + 2^-14)
+    18446181140935475216, // 1 / (1 + 2^-15)
+    18446462603027742721, // 1 / (1 + 2^-16)
+    18446603337294929920, // 1 / (1 + 2^-17)
+    18446673705233808384, // 1 / (1 + 2^-18)
+    18446708889404571520, // 1 / (1 + 2^-19)
+    18446726481540284400, // 1 / (1 + 2^-20)
+    18446735277620723710, // 1 / (1 + 2^-21)
+    18446739675664089088, // 1 / (1 + 2^-22)
+    18446741874686558208, // 1 / (1 + 2^-23)
+    18446742974197989376, // 1 / (1 + 2^-24)
+    18446743523953754112, // 1 / (1 + 2^-25)
+    18446743798831648768, // 1 / (1 + 2^-26)
+    18446743936270599168, // 1 / (1 + 2^-27)
+    18446744004990075136, // 1 / (1 + 2^-28)
+    18446744039349813312, // 1 / (1 + 2^-29)
+    18446744056529682448, // 1 / (1 + 2^-30)
+    18446744065119617028, // 1 / (1 + 2^-31)
+    18446744069414584321, // 1 / (1 + 2^-32)
+    18446744071562067968, // 1 / (1 + 2^-33)
+    18446744072635809792, // 1 / (1 + 2^-34)
+    18446744073172680704, // 1 / (1 + 2^-35)
+    18446744073441116160, // 1 / (1 + 2^-36)
+    18446744073575333888, // 1 / (1 + 2^-37)
+    18446744073642442752, // 1 / (1 + 2^-38)
+    18446744073675997184, // 1 / (1 + 2^-39)
+    18446744073692774400, // 1 / (1 + 2^-40)
+    18446744073701163008, // 1 / (1 + 2^-41)
+    18446744073705357312, // 1 / (1 + 2^-42)
+    18446744073707454464, // 1 / (1 + 2^-43)
+    18446744073708503040, // 1 / (1 + 2^-44)
+    18446744073709027328, // 1 / (1 + 2^-45)
+    18446744073709289472, // 1 / (1 + 2^-46)
+    18446744073709420544, // 1 / (1 + 2^-47)
+    18446744073709486080, // 1 / (1 + 2^-48)
+];
+
 pub(crate) const PI_Q64: i128 = 57952155664616982739;
 pub(crate) const FRAC_PI_2_Q64: i128 = 28976077832308491370;
 pub(crate) const LN_2_Q64: i128 = 12786308645202655660;
@@ -181,15 +233,16 @@ pub(crate) fn divide(numerator: i128, denominator: i128) -> Option<i128> {
         return None;
     }
 
+    // The fractional part is extracted in two steps of 32 bits, the hardware
+    // division is much faster than the bit by bit one.
     let mut remainder = dividend % divisor;
     let mut fraction: u64 = 0;
-    for _ in 0..64 {
-        remainder <<= 1;
-        fraction <<= 1;
-        if remainder >= divisor {
-            remainder -= divisor;
-            fraction |= 1;
-        }
+
+    for _ in 0..2 {
+        remainder <<= 32;
+        let part = remainder / divisor;
+        remainder %= divisor;
+        fraction = (fraction << 32) | part as u64;
     }
 
     let magnitude = ((units << 64) | fraction as u128) as i128;
@@ -287,13 +340,11 @@ pub(crate) fn logarithm(value: i128) -> Option<i128> {
 
     if mantissa != ONE_Q64 {
         for index in 1..=ITERATIONS {
-            let factor = ONE_Q64 + (ONE_Q64 >> index);
-
             if product <= mantissa {
                 product += product >> index;
                 logarithm += LOG_TABLE[index - 1];
             } else {
-                product = divide(product, factor)?;
+                product = multiply(product, RECIPROCAL_TABLE[index - 1]);
                 logarithm -= LOG_TABLE[index - 1];
             }
         }
@@ -314,13 +365,11 @@ pub(crate) fn exponential(internal: i128) -> Option<i128> {
 
     if remainder != 0 {
         for index in 1..=ITERATIONS {
-            let factor = ONE_Q64 + (ONE_Q64 >> index);
-
             if logarithm <= remainder {
                 product += product >> index;
                 logarithm += LOG_TABLE[index - 1];
             } else {
-                product = divide(product, factor)?;
+                product = multiply(product, RECIPROCAL_TABLE[index - 1]);
                 logarithm -= LOG_TABLE[index - 1];
             }
         }

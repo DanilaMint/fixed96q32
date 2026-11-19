@@ -157,6 +157,49 @@ fixed96q32 = { version = "0.1", default-features = false }
 | [`num_traits`](src/num_traits.rs) | the interoperability with `num-traits` |
 | [`serde`](src/serde.rs) | the interoperability with `serde` |
 
+## Benchmarks
+
+The benchmarks are written with the [criterion](https://github.com/bheisler/criterion)
+framework and cover the arithmetic, the conversions, the formatting and the
+advanced mathematics:
+
+```console
+cargo bench
+```
+
+The processor cycles of every operation are measured separately with the
+`rdtsc` instruction, so the numbers do not depend on the frequency scaling:
+
+```console
+cargo bench --bench cycles
+```
+
+The table below holds the median values of a run on a x86-64 processor, the
+exact numbers depend on the machine:
+
+| Operation | Time | Operation | Time |
+|---|---|---|---|
+| `add`, `sub` | 1.4 ns | `sqrt` | 46 ns |
+| `mul` | 4.1 ns | `cbrt` | 276 ns |
+| `div` | 37 ns | `ln` | 8 ns |
+| `rem` | 4.7 ns | `log2`, `log10` | 20 ns |
+| `checked_add` | 1.9 ns | `exp` | 132 ns |
+| `checked_mul` | 4.3 ns | `sin`, `cos` | 115 ns |
+| `saturating_add` | 1.4 ns | `tan` | 126 ns |
+| `wrapping_add` | 1.4 ns | `asin`, `acos` | 111 ns |
+| `overflowing_add` | 6.5 ns | `atan`, `atan2` | 95 ns |
+| `from_int` | 1.2 ns | `sinh`, `cosh` | 255 ns |
+| `from_f64` | 9.8 ns | `tanh` | 161 ns |
+| `to_f64` | 4.9 ns | `powi` | 16 ns |
+| `display` | 164 ns | `powf` | 135 ns |
+| `parse` | 13 ns | `hypot` | 55 ns |
+
+The division is the slowest arithmetic operation, because the quotient is
+extracted bit by bit to keep the full precision of the type. The CORDIC
+iterations dominate the mathematical functions, and the display is the slowest
+operation of the formatting, because the shortest round-tripping decimal
+representation is searched.
+
 ## Verification
 
 ```console
