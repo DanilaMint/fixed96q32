@@ -62,6 +62,14 @@ impl From<i64> for Fixed {
     }
 }
 
+impl From<isize> for Fixed {
+    /// Converts an unsigned long, which is always exact.
+    #[inline]
+    fn from(value: isize) -> Self {
+        Fixed::from_raw((value as i128) << 32)
+    }
+}
+
 impl From<u8> for Fixed {
     /// Converts an unsigned byte, which is always exact.
     #[inline]
@@ -90,6 +98,14 @@ impl From<u64> for Fixed {
     /// Converts an unsigned long, which is always exact.
     #[inline]
     fn from(value: u64) -> Self {
+        Fixed::from_raw((value as i128) << 32)
+    }
+}
+
+impl From<usize> for Fixed {
+    /// Converts an unsigned long, which is always exact.
+    #[inline]
+    fn from(value: usize) -> Self {
         Fixed::from_raw((value as i128) << 32)
     }
 }
@@ -194,6 +210,70 @@ impl From<Fixed> for f32 {
     #[inline]
     fn from(value: Fixed) -> Self {
         value.to_f32()
+    }
+}
+
+/// Implements the conversion of a [`Fixed`] value into an integer type.
+///
+/// The fractional part of the value is truncated towards zero, and the value
+/// that does not fit into the range of the target type is reported with
+/// [`ConversionError::OutOfRange`].
+macro_rules! impl_try_from_fixed_for_integer {
+    ($($type:ty),* $(,)?) => {
+        $(
+            impl TryFrom<Fixed> for $type {
+                /// Converts a fixed-point number, truncating the fractional
+                /// part towards zero.
+                ///
+                /// # Errors
+                ///
+                /// Returns [`ConversionError::OutOfRange`] when the truncated
+                /// value does not fit into the range of the type.
+                type Error = ConversionError;
+
+                #[inline]
+                fn try_from(value: Fixed) -> Result<Self, Self::Error> {
+                    <$type>::try_from(value.to_i128()).map_err(|_| ConversionError::OutOfRange)
+                }
+            }
+        )*
+    };
+}
+
+impl_try_from_fixed_for_integer!(i8, i16, i32, i64, u8, u16, u32, u64, u128, usize);
+
+impl TryFrom<Fixed> for i128 {
+    /// Converts a fixed-point number, truncating the fractional part towards
+    /// zero.
+    ///
+    /// # Errors
+    ///
+    /// The integral part of a [`Fixed`] always fits into an `i128`, therefore
+    /// the conversion never fails.
+    type Error = ConversionError;
+
+    #[inline]
+    fn try_from(value: Fixed) -> Result<Self, Self::Error> {
+        Ok(value.to_i128())
+    }
+}
+
+impl From<Fixed> for isize {
+    /// Converts a fixed-point number, truncating the fractional part towards
+    /// zero and clamping the integral part to the range of the type.
+    ///
+    /// The conversion is infallible, therefore the `TryFrom` implementation for
+    /// `isize` is derived from it by the standard library.
+    #[inline]
+    fn from(value: Fixed) -> Self {
+        let integer = value.to_i128();
+        if integer > isize::MAX as i128 {
+            isize::MAX
+        } else if integer < isize::MIN as i128 {
+            isize::MIN
+        } else {
+            integer as isize
+        }
     }
 }
 
@@ -317,6 +397,60 @@ mod tests {
     fn fixed_numbers_are_converted_into_floats() {
         assert_eq!(f64::from(Fixed::HALF), 0.5);
         assert_eq!(f32::from(Fixed::ONE), 1.0);
+    }
+
+    #[test]
+    fn fixed_numbers_are_converted_into_integers() {
+        assert_eq!(i8::try_from(Fixed::from_parts(2, 7)), Ok(2));
+        assert_eq!(i16::try_from(Fixed::from_parts(-2, 7)), Ok(-2));
+        assert_eq!(i32::try_from(Fixed::HALF), Ok(0));
+        assert_eq!(i64::try_from(Fixed::from_int(-42)), Ok(-42));
+        assert_eq!(u8::try_from(Fixed::from_parts(7, 7)), Ok(7));
+        assert_eq!(u16::try_from(Fixed::from_int(1000)), Ok(1000));
+        assert_eq!(u32::try_from(Fixed::from_int(1000)), Ok(1000));
+        assert_eq!(u64::try_from(Fixed::from_int(1000)), Ok(1000));
+        assert_eq!(usize::try_from(Fixed::from_int(1000)), Ok(1000));
+    }
+
+    #[test]
+    fn the_wide_integers_absorb_the_whole_range() {
+        assert_eq!(i128::try_from(Fixed::MAX), Ok((1i128 << 95) - 1));
+        assert_eq!(i128::try_from(Fixed::MIN), Ok(-(1i128 << 95)));
+        assert_eq!(u128::try_from(Fixed::MAX), Ok((1u128 << 95) - 1));
+    }
+
+    #[test]
+    fn the_integers_report_the_out_of_range_values() {
+        assert_eq!(
+            i8::try_from(Fixed::from_int(128)),
+            Err(ConversionError::OutOfRange)
+        );
+        assert_eq!(
+            i8::try_from(Fixed::from_int(-129)),
+            Err(ConversionError::OutOfRange)
+        );
+        assert_eq!(
+            u8::try_from(Fixed::from_int(256)),
+            Err(ConversionError::OutOfRange)
+        );
+        assert_eq!(
+            u8::try_from(Fixed::NEG_ONE),
+            Err(ConversionError::OutOfRange)
+        );
+        assert_eq!(u64::try_from(Fixed::MAX), Err(ConversionError::OutOfRange));
+        assert_eq!(
+            usize::try_from(Fixed::NEG_ONE),
+            Err(ConversionError::OutOfRange)
+        );
+        assert_eq!(u128::try_from(Fixed::MIN), Err(ConversionError::OutOfRange));
+    }
+
+    #[test]
+    fn the_pointer_sized_integer_is_converted_without_an_error() {
+        assert_eq!(isize::from(Fixed::from_parts(2, 7)), 2);
+        assert_eq!(isize::from(Fixed::from_parts(-2, 7)), -2);
+        assert_eq!(isize::from(Fixed::MAX), isize::MAX);
+        assert_eq!(isize::from(Fixed::MIN), isize::MIN);
     }
 
     #[test]

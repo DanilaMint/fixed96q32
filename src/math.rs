@@ -35,7 +35,7 @@ use self::cordic::{
     RADIANS_PER_DEGREE_Q64, arc_tangent, divide, exponential, from_internal, integer_sqrt,
     logarithm, multiply, sine_and_cosine, sqrt_internal, to_internal,
 };
-use crate::fixed::Fixed;
+use crate::{consts, fixed::Fixed};
 
 impl Fixed {
     /// Returns the square root of the value.
@@ -47,8 +47,10 @@ impl Fixed {
     /// ```
     /// use fixed96q32::Fixed;
     ///
-    /// assert_eq!(Fixed::from_int(4).sqrt().unwrap(), Fixed::from_int(2));
-    /// assert_eq!(Fixed::from_int(9).sqrt().unwrap(), Fixed::from_int(3));
+    /// assert_eq!(Fixed::from_int(4).sqrt(), Some(Fixed::from_int(2)));
+    /// assert_eq!(Fixed::from_int(9).sqrt(), Some(Fixed::from_int(3)));
+    /// assert_eq!(Fixed::ZERO.sqrt(), Some(Fixed::ZERO));
+    /// assert_eq!(Fixed::NEG_ONE.sqrt(), None);
     /// ```
     #[inline]
     pub fn sqrt(self) -> Option<Self> {
@@ -69,6 +71,35 @@ impl Fixed {
         let result = (root << 16) + correction;
 
         Some(Self::from_raw(result as i128))
+    }
+
+    /// Returns the square root of the absolute value.
+    ///
+    /// ```
+    /// use fixed96q32::Fixed;
+    ///
+    /// assert_eq!(Fixed::from_int(4).sqrt(), Some(Fixed::from_int(2)));
+    /// assert_eq!(Fixed::from_int(9).sqrt(), Some(Fixed::from_int(3)));
+    /// assert_eq!(Fixed::ZERO.sqrt(), Some(Fixed::ZERO));
+    /// assert_eq!(Fixed::NEG_ONE.sqrt(), Some(Fixed::NEG_ONE));
+    /// ```
+    #[inline]
+    pub fn sqrt_abs(self) -> Self {
+        if self == Self::MIN {
+            return Self::from_raw(1 << 47) * consts::SQRT_2;
+        }
+        if self == Self::ZERO {
+            return Self::ZERO;
+        }
+
+        let raw = self.abs().to_raw() as u128;
+
+        let root = integer_sqrt(raw);
+        let remainder = raw - root * root;
+        let correction = (remainder << 16) / (root << 1);
+        let result = (root << 16) + correction;
+
+        Self::from_raw(result as i128)
     }
 
     /// Returns the cube root of the value.

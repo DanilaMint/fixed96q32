@@ -93,6 +93,29 @@ so `Fixed::ONE / Fixed::from_int(3)` equals `0.3333333333`. The division by
 zero panics, and the remainder is truncated towards zero, exactly like the
 remainder of the floating point types.
 
+## Conversions
+
+The integral types are converted with `TryFrom`, the fractional part is
+truncated towards zero, and the value that does not fit into the range of the
+target type is reported with an error:
+
+```rust
+use fixed96q32::Fixed;
+use fixed96q32::froms::ConversionError;
+
+assert_eq!(i32::try_from(Fixed::from_parts(2, 7)), Ok(2));
+assert_eq!(u8::try_from(Fixed::from_int(256)), Err(ConversionError::OutOfRange));
+```
+
+The pointer sized `isize` is converted with the infallible `From`, its integral
+part is clamped to the range of the type:
+
+```rust
+use fixed96q32::Fixed;
+
+assert_eq!(isize::from(Fixed::from_parts(-2, 7)), -2);
+```
+
 ## Advanced mathematics
 
 The module [`math`](src/math.rs) implements the functions of `f64` without a

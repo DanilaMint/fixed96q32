@@ -107,6 +107,27 @@ fn the_conversions_preserve_the_value() {
 }
 
 #[test]
+fn the_fixed_numbers_are_converted_into_integers() {
+    assert_eq!(i32::try_from(Fixed::from_parts(2, 7)), Ok(2));
+    assert_eq!(i32::try_from(Fixed::from_parts(-2, 7)), Ok(-2));
+    assert_eq!(u64::try_from(Fixed::from_int(42)), Ok(42));
+    assert_eq!(usize::try_from(Fixed::from_int(42)), Ok(42));
+    assert_eq!(i128::try_from(Fixed::MAX), Ok((1i128 << 95) - 1));
+
+    assert_eq!(
+        i8::try_from(Fixed::from_int(128)),
+        Err(fixed96q32::froms::ConversionError::OutOfRange)
+    );
+    assert_eq!(
+        u8::try_from(Fixed::NEG_ONE),
+        Err(fixed96q32::froms::ConversionError::OutOfRange)
+    );
+
+    assert_eq!(isize::from(Fixed::from_parts(2, 7)), 2);
+    assert_eq!(isize::from(Fixed::MAX), isize::MAX);
+}
+
+#[test]
 fn the_constants_match_the_reference_values() {
     assert!((PI.to_f64() - std::f64::consts::PI).abs() < 1e-9);
     assert!((SQRT_2.to_f64() - std::f64::consts::SQRT_2).abs() < 1e-9);
